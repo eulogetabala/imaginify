@@ -1,6 +1,9 @@
 import { Webhook } from 'svix'
 import { headers } from 'next/headers'
 import { WebhookEvent } from '@clerk/nextjs/server'
+import { NextResponse } from "next/server";
+import { clerkClient } from '@clerk/nextjs/server';
+import { createUser, deleteUser, updateUser } from '@/lib/actions/user.actions'
 
 export async function POST(req: Request) {
 
@@ -51,6 +54,58 @@ export async function POST(req: Request) {
   // For this guide, you simply log the payload to the console
   const { id } = evt.data;
   const eventType = evt.type;
+  
+  // CREATE
+  if (eventType === "user.created") {
+    const { id, email_addresses, image_url, first_name, last_name, username } = evt.data;
+
+    const user = {
+      clerkId: id,
+      email: email_addresses[0].email_address,
+      username: username!,
+      firstName: '',
+      lastName: '',
+      photo: image_url,
+    };
+
+    const newUser = await createUser(user)
+
+    // Set public metadata
+    if (newUser) {
+      await clerkClient.users.updateUserMetadata(id, {
+        publicMetadata: {
+          userId: newUser._id,
+        },
+      });
+    }
+
+    return NextResponse.json({ message: "OK", user: newUser });
+  }
+
+  // UPDATE
+  if (eventType === "user.updated") {
+    const { id, image_url, first_name, last_name, username } = evt.data;
+
+    const user = {
+      firstName: '',
+      lastName: '',
+      username: username!,
+      photo: image_url,
+    };
+
+    const updatedUser = await updateUser(id, user);
+
+    return NextResponse.json({ message: "OK", user: updatedUser });
+  }
+
+  // DELETE
+  if (eventType === "user.deleted") {
+    const { id } = evt.data;
+
+    const deletedUser = await deleteUser(id!);
+
+    return NextResponse.json({ message: "OK", user: deletedUser });
+  }
   console.log(`Webhook with and ID of ${id} and type of ${eventType}`)
   console.log('Webhook body:', body)
 
